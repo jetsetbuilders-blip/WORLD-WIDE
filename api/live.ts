@@ -1,30 +1,4 @@
 type LiveSource={id:string;title:string;provider:string;player:string;city:string;country:string;lat:number;lon:number;thumbnail?:string};
 const CARIBBEAN=["JM","BB","TT","BS","DO","HT","CU","PR","AW","CW","SX","GP","MQ","VI","VG","KY","LC","GD","VC","AG","DM","KN","MS","TC"];
-export default async function handler(req:any,res:any){
- const out:LiveSource[]=[]; const key=process.env.WINDY_API_KEY;
- try{
-  if(key){
-   const countries=CARIBBEAN;
-   for(const country of countries){
-    if(out.length>=100) break;
-    const u=new URL("https://api.windy.com/webcams/api/v3/webcams");
-    u.searchParams.set("limit","50"); u.searchParams.set("countries",country);
-    u.searchParams.set("sortKey","popularity"); u.searchParams.set("sortDirection","desc");
-    u.searchParams.set("include","categories,images,location,player,urls"); u.searchParams.set("lang","en");
-    const r=await fetch(u,{headers:{"X-WINDY-API-KEY":key}});
-    if(!r.ok) continue;
-    const d=await r.json();
-    for(const c of d.webcams||[]){
-      const p=c.player?.live; if(!p) continue;
-      out.push({id:"windy-"+c.webcamId,title:c.title||"Unnamed webcam",provider:"Windy Webcams",player:p,city:c.location?.city||"",country:c.location?.country||"",lat:c.location?.latitude,lon:c.location?.longitude,thumbnail:c.images?.current?.preview||c.images?.current?.icon});
-      if(out.length>=100) break;
-    }
-   }
-  }
-  const configured=process.env.LIVE_STREAMS_JSON;
-  if(configured){const sources=JSON.parse(configured);for(const s of sources)if(s?.id&&s?.player)out.push(s)}
-  const unique=Array.from(new Map(out.map(x=>[x.id,x])).values());
-  res.setHeader("Cache-Control","s-maxage=60, stale-while-revalidate=300");
-  return res.json({ok:true,total:unique.length,sources:unique,caribbeanCountries:CARIBBEAN});
- }catch(e){return res.status(500).json({ok:false,error:String(e)})}
-}
+const REGIONS=[{name:"Caribbean",codes:CARIBBEAN},{name:"United States",codes:["US"]},{name:"United Kingdom",codes:["GB"]}];
+export default async function handler(req:any,res:any){const out:LiveSource[]=[];const key=process.env.WINDY_API_KEY;try{if(key){for(const group of REGIONS){for(const country of group.codes){if(out.length>=200)break;const u=new URL("https://api.windy.com/webcams/api/v3/webcams");u.searchParams.set("limit","50");u.searchParams.set("countries",country);u.searchParams.set("sortKey","popularity");u.searchParams.set("sortDirection","desc");u.searchParams.set("include","categories,images,location,player,urls");u.searchParams.set("lang","en");const r=await fetch(u,{headers:{"X-WINDY-API-KEY":key}});if(!r.ok)continue;const d=await r.json();for(const c of d.webcams||[]){const p=c.player?.live;if(!p)continue;out.push({id:"windy-"+c.webcamId,title:c.title||"Unnamed webcam",provider:"Windy Webcams",player:p,city:c.location?.city||"",country:c.location?.country||"",lat:c.location?.latitude,lon:c.location?.longitude,thumbnail:c.images?.current?.preview||c.images?.current?.icon});if(out.length>=200)break}}}}const configured=process.env.LIVE_STREAMS_JSON;if(configured){const sources=JSON.parse(configured);for(const s of sources)if(s?.id&&s?.player)out.push(s)}const unique=Array.from(new Map(out.map(x=>[x.id,x])).values());res.setHeader("Cache-Control","s-maxage=60, stale-while-revalidate=300");return res.json({ok:true,total:unique.length,sources:unique,coverage:["Caribbean","United States","United Kingdom"]});}catch(e){return res.status(500).json({ok:false,error:String(e)})}}
